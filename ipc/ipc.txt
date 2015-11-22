@@ -1,0 +1,302 @@
+IPC:
+inter-process communication.
+share data across multiple processes.
+
+Chrome process <=> Content processes
+some actions requires chrome privilege.
+
+IPDL
+the mozilla specific language to generate C++ code to pass messages between processes or threads.
+IPDL file => ipdl.py => c++ ipc code
+定義了有什麼message可以使用.
+
+1. what's actor
+IPDL will generate two end point for message passing. This two end point are called actor.
+2. message direction
+
+/////
+PTest.ipdl:
+protocol PTest
+{
+child:
+  ParentToChild();
+parent:
+  ChildToParent();
+both:
+  BothDirection();
+};
+
+//////////////
+moz.build:
+include('/ipc/chromium/chromium-config.mozbuild')
+IPDL_SOURCES = [
+    'ipc/PTest.ipdl',
+]
+////////
+PTestParent.h:
+class PTestParent
+{
+protected:
+  virtual bool RecvChildToParent() = 0;
+  virtual bool RecvBothDirection() = 0;
+public:
+  bool SendParentToChild();
+  bool SendBothDirection();
+};
+///////
+PTestChild.h:
+class PTestChlid
+{
+protected:
+  virtual bool RecvParentToChild() = 0;
+  virtual bool RecvBothDirection() = 0;
+public:
+  bool SendChildToParent();
+  bool SendBothDirection();
+};
+///////
+PTestChild.h
+class TestChild : public PTestChild
+{
+    ....
+    virtual bool RecvParentToChild() MOZ_OVERRIDE;
+    virtual bool RecvBothDirection() MOZ_OVERRIDE;
+};
+
+Message data type
+1. c++ primitive type or ipc builtin type(check ipc/ipdl/ipdl/builtin.py)
+'int32_t',
+'uint32_t',
+'int64_t',
+'nsresult',
+'nsString',
+'nsCString',
+
+2. struct
+IPDL:
+  struct Pos
+  {
+    int x;
+    int y;
+  };
+
+  StructData(Pos pos);
+c++:
+  virtual bool RecvStructData(const Pos& pos) = 0;
+3. union
+
+4. array
+IPDL:
+  ArrayData(int32_t[] array);
+c++:
+  virtual bool RecvArrayData(nsTArray<int32_t>&& array) = 0;
+
+5. actor
+send an actor parent will convert it to an actor child on the other side.
+
+6. file descriptor
+Currently, only supprt for posix system.
+OSX and linux have different impl.
+linux: SOL_SOCKET and SCM_RIGHTS flag.
+please check ipc_channel_posix.cc
+
+7. shared memory
+please check shared_memory_posix.cc and shared_memory_win.cc
+linux: mmap().
+
+the parameter is just atemporary objectsuser, user should copy them if they want to keep this value. 
+
+
+sync/async semantics
+PTest.ipdl:
+sync protocol PTest
+{
+child:
+  async ParentToChild();
+parent:
+  sync ChildToParent(int32_t num) returns (int ans, bool result);
+both:
+  async BothDirection();
+};
+////////
+PTestParent.h:
+class PTestParent
+{
+protected:
+  virtual bool RecvChildToParent(const int32_t& num, int* ans, bool* result) = 0;
+};
+///////
+PTestChild.h:
+class PTestChlid
+{
+public:
+  bool SendChildToParent(const int32_t& num, bool* result);
+};
+
+async:
+sender is not blocked.
+sync:
+sender blocks until the receiver receives the message and sends back a reply if needs.
+onlys sync call may have return values.
+
+use async by default.
+sync only can used from child to parent. sync parent-to-child messages are verboten.
+
+intr semantic:
+intr protocol PTest
+{
+child:
+  intr IntrParentToChild();
+parent:
+  intr IntrChildToParent();
+};
+
+intr represent a sync and re-entrant messages.
+eg:
+CallIntrChildToParent()    ->    AnswerIntrChildToParent()
+                                       |
+                                       |
+AnswerIntrParentToChild()  <-    CallIntrParentToChild()
+
+They're basically used for plugins. Just pretend that they don't exist.
+
+priority semantic:
+prio(normal), prio(high) and prio(urgent)
+
+prio(normal upto high) protocol PTest
+{
+child:
+  prio(high) AsyncHighParentToChild();
+parent:
+  sync SyncNormalChildToParent();
+};
+
+SyncNormalChildToParent()     ->    RecvNormalChildToParent()
+                                           |
+                                           |
+RecvAsyncHighParentToChild()  <-    SendAsyncHighParentToChild()
+
+This is incredibly dangerous. You should make sure the sync-calling code is completely unrelated to the incoming high priority message.
+Check MessageChannel.cpp for detail.
+
+compress semantic:
+PBrowser.ipdl
+prio(normal upto urgent) intr protocol PBrowser
+{
+  UpdateDimensions(...) compress;
+};
+
+Could be used with async message.
+If message has compression semantic, and the message in queue with the same message type and routed to the same destination.
+
+Please check MessageChannel::OnMessageReceivedFromLink and Bug 1076820.
+
+subprotocol:
+////////
+PTest.ipdl
+include protocol PTestSubtree;
+sync protocol PTest
+{
+  manages PTestSubtree;
+
+child:
+  async ParentToChild();
+parent:
+  sync PTestSubtree(int32_t data) returns (bool result); //create child first and then parent.
+};
+/////////
+PTestSubtree.ipdl
+include protocol PTest;
+protocol PTestSubtree
+{
+  manager PTest;
+child:
+  __delete__();    //parent can start the delete task
+  ParentToChild();
+};
+///////
+PTestParent.h
+class PTestParent
+{
+  virtual bool RecvPTestSubtreeConstructor(PTestSubtreeParent* actor, const int32_t& data, bool* result);
+  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  virtual PTestSubtreeParent* AllocPTestSubtreeParent(const int32_t& data, bool* result) = 0;
+  virtual bool DeallocPTestSubtreeParent(PTestSubtreeParent* aActor) = 0;
+};
+///////
+PTestChild.h
+
+class PTestChild
+{
+
+	PTestSubtreeChild* SendPTestSubtreeConstructor(onst int32_t& data, bool* result);
+	virtual void ActorDestroy(ActorDestroyReason why) = 0;
+  virtual PTestSubtreeChild* AllocPTestSubtreeChild(const int32_t& data, bool* result) = 0;
+  virtual bool DeallocPTestSubtreeChild(PTestSubtreeChild* aActor) = 0;
+};
+////////
+PTestSubtreeChild.h
+class PTestSubtreeChild
+{
+    virtual bool Recv__delete__();
+    virtual void ActorDestroy(ActorDestroyReason why) = 0;
+};
+////////
+PTestSubtreeParent.h
+class PTestSubtreeParent
+{
+	static bool Send__delete__(PTestSubtreeParent* actor);
+	virtual void ActorDestroy(ActorDestroyReason why) = 0;
+};
+
+Create actor:
+Top-level protocol PTest
+	call PTestParent::Open()
+Subprotocol PTestSubtree
+  call PTestChild::SendPTestSubtreeConstructor()
+The corresponding AllocPTest* will be called.
+
+Destroy actor:
+Top-level protocol PTest
+call PTestParent::Close() to close the channel.
+  PTestParent::DestroySubtree()
+  	PTestParent::ActorDestroy()
+  PTestParent::DeallocSubtree()
+Subprotocol PTestSubtree
+  parent:
+  	PTestSubtreeParent::Send__delete__()
+  child:
+    PTestSubtreeChild::Recv__delete__()
+      PTestSubtreeChild::DestroySubtree()
+      	PTestSubtreeChild::ActorDestroy()
+      unregister itself from its manager
+
+
+Thread model:
+
+       Chrome                                              Content                  
+                                          +                                         
+                                          |                                         
+                                          |                                         
++---+--+----+         +-----------+       |       +-----------+        +---+--+----+
+|Top-level  |         |    IO     |       |       |    IO     |        |Top-level  |
+|Protocol   | <-----> |MessageLoop| <-----+-----> |MessageLoop| <----> |Protocol   |
+|MessageLoop|         +-----------+     unix      +-----------+        |MessageLoop|
++-----------+                          domain                          +-----------+
+                         ^             socket             ^                         
++---+--+----+            |                +               |            +---+--+----+
+|Top-Level  |            |                |               |            |Top-level  |
+|Protocol   | <----------+                +               +----------> |Protocol   |
+|MessageLoop|                                                          |MessageLoop|
++-----------+                                                          +-----------+
+
+Top-level protocol and its subprotocol will run on the thread which call Open().
+Please check MessageChannel::Open()
+Each top-level protocol has its own IPC channel.
+
+
+
+
+Debug ipc:
+1. debug build
+2. export environment variable "MOZ_IPC_MESSAGE_LOG=1" or "MOZ_IPC_MESSAGE_LOG=$TOP_LEVEL_PROTOCOL_NAME"
