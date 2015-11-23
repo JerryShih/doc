@@ -1,7 +1,3 @@
-<!--Meta author:'Jerry' theme:'night' title:Effect Modern C++-->
-<!--Meta width:1440 height:900-->
-<!--Meta margin:0-->
-<!--Meta minScale:0.5-->
 
 ## Item 3: Understand decltype
 ## Item 4: Know ho to view deduced types
@@ -10,7 +6,7 @@
 
 ---
 
-### decltype Keyword
+### Item3: decltype Keyword
 * decltype is a keyword used to query the type of an expression
 
 ``` c
@@ -25,7 +21,7 @@ if (f(w)) {               // decltype(f(w)) -> bool
 
 ----
 
-### The decltype of operator[]
+#### The decltype of operator[]
 
 * decltype(Container<T>[i]) -> T&
 * decltype(vector<bool>[i]) -> not bool& but vector&lt;bool&gt;::reference
@@ -43,7 +39,7 @@ auto authAndAccess(Container& c, Index i) -> decltype(c[i])
 
 ----
 
-### The decltype of operator[]
+#### The decltype of operator[]
 ``` c
 // C++14
 // Use more powerful auto in C++14?
@@ -61,8 +57,8 @@ authAndAccess(d, 5) = 10; // <== error here
 ```
 
 ``` c
-// recall item 1
-// auto for c[i] is just like this template function f
+// recall item 1:
+// auto for c[i] is just like this template function f() as following.
 // If c[i] is a reference, ignore the reference part.
 template<typename T>
 void f(T param);
@@ -70,7 +66,7 @@ void f(T param);
 
 ----
 
-### The decltype of operator[]
+#### The decltype of operator[]
 ``` c
 // C++14
 // combime decltype and auto
@@ -84,7 +80,7 @@ decltype(auto) authAndAccess(Container& c, Index i)
 
 ----
 
-### auto and decltype(auto)
+#### auto and decltype(auto)
 ``` c
 // C++14
 Widget w;
@@ -97,7 +93,7 @@ decltype(auto) myWidget2 = cw;  // myWidget2 => const Widget&
 
 ----
 
-### Final refinement of authAndAccess()
+#### Final refinement of authAndAccess()
 ``` c
 // C++14
 template<typename Container, typename Index>
@@ -111,6 +107,10 @@ auto s = authAndAccess(makeStringDeque(), 5); // <== error
 * Resolution:
   * overloading for lvalue and rvalue reference
   * use universal reference
+
+----
+
+#### Final refinement of authAndAccess()
 ``` c
 // C++14
 // use universal reference
@@ -120,4 +120,84 @@ decltype(auto) authAndAccess(Container&& c, Index i)
   authenticateUser();
   return forward<Container>(c)[i];  // use forward for universal reference
 }
+```
+``` c
+// C++11
+// use universal reference
+template<typename Container, typename Index>
+auto authAndAccess(Container&& c, Index i) -> decltype(forward<Container>(c)[i])
+{
+  authenticateUser();
+  return forward<Container>(c)[i];  // use forward for universal reference
+}
+```
+
+----
+
+#### decltype on "name" or other lvalue expression
+
+``` c
+declteyp(auto) f1()
+{
+  int x = 0;
+  return x; // decltype(x) -> int
+}
+
+decltype(auto) f2()
+{
+  int x = 0;
+  return (x); // decltype((x)) -> int&
+}
+```
+
+---
+
+### Item4: Show the deduced types
+* Use IDE
+* Use compiler
+* typeid operator
+* boost::typeindex
+
+``` c
+template<typename Type>
+class TypeDisplayer;
+
+TypeDisplayer<decltype(x)> xType; // Show the error message with x type.
+```
+
+``` c
+#include <typeinfo>
+
+cout << typeid(x).name(); // typeid return type_info object which contains type info.
+```
+
+----
+
+#### typeid
+``` c
+vector<Widget> createVec();
+const auto vw = createVec();
+f(&vw[0]);
+
+template<typename T>
+void f(const T& param)
+{
+  cout << typeid(param).name(); // param's type is "const Widget* const &" but
+                                // get "const Widget*"
+}
+```
+
+----
+
+#### boost::typeindex
+* Since Boost 1.56
+``` c
+template<typename T>
+void f(const T& param)
+{
+  cout << boost::typeindex::type_id_with_cvr<T>().pretty_name();
+  cout << boost::typeindex::type_id_with_cvr<decltype(param)>().pretty_name();
+}
+// T -> Widget const*
+// param -> const Widget* const &
 ```
