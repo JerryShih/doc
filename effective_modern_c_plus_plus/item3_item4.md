@@ -23,12 +23,13 @@ if (f(w)) {               // decltype(f(w)) -> bool
 
 #### The decltype of operator[]
 
-* decltype(Container<T>[i]) -> T&
-* decltype(vector<bool>[i]) -> not bool& but vector&lt;bool&gt;::reference
+* decltype(Container&lt;T&gt;[i]) -> T&
+* decltype(vector&lt;bool&gt;[i]) -> not bool& but vector&lt;bool&gt;::reference
 
 ``` c
+// How to get the type of c[i]?
 // C++11 only could deduce the return type for single-statement lambdas.
-// Use "trailing return type" here
+// Use "trailing return type" here.
 template<typename Container, typename Index>
 auto authAndAccess(Container& c, Index i) -> decltype(c[i])
 {
@@ -102,7 +103,8 @@ decltype(auto) authAndAccess(Container& c, Index i);
 deque<string> makeStringDeque();
 auto s = authAndAccess(makeStringDeque(), 5); // <== error
 // rvalue can't bind to lvalue reference.
-// Note: rvalue can bind to lvalue-reference-to-const.
+// makeStringDeque() can't bind to c.
+// (rvalue can bind to lvalue-reference-to-const)
 ```
 * Resolution:
   * overloading for lvalue and rvalue reference
@@ -119,6 +121,7 @@ decltype(auto) authAndAccess(Container&& c, Index i)
 {
   authenticateUser();
   return forward<Container>(c)[i];  // use forward for universal reference
+                                    // (use move for rvalue reference)
 }
 ```
 ``` c
@@ -182,15 +185,19 @@ f(&vw[0]);
 template<typename T>
 void f(const T& param)
 {
-  cout << typeid(param).name(); // param's type is "const Widget* const &" but
-                                // get "const Widget*"
+  cout << typeid(param).name(); // Param's type is "const Widget* const &" but
+                                // get "const Widget*".
+                                // typeid is just like the type deducing for
+                                // non-reference parameter type. Please check item 1.
+
 }
 ```
 
 ----
 
 #### boost::typeindex
-* Since Boost 1.56
+* Since Boost 1.56(Ubuntu 15.10 has boost 1.58 package)
+
 ``` c
 template<typename T>
 void f(const T& param)
