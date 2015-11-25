@@ -140,7 +140,7 @@ auto authAndAccess(Container&& c, Index i) -> decltype(forward<Container>(c)[i])
 #### decltype on "name" or other lvalue expression
 
 ``` c
-declteyp(auto) f1()
+decltype(auto) f1()
 {
   int x = 0;
   return x; // decltype(x) -> int
