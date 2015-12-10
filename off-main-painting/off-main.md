@@ -28,5 +28,38 @@ ActualDrawCommand();
 // Start to process all pending message.
 layerTransactionParent->GetIPCChannel()->
   EndPendingMessage();
-    
 ```
+
+----
+
+### IPC
+
+                                           +---------------------------------------------+
+                                           |                                             |
+                                           |                                             |
+                                 +-----------------------------------------+             |
+                                 |         |                               |             |
+                                 +         +                               |             |
+                            DeferredM1  DeferredM2                         |             |
+  compositor +-------------------+---------+-----------------------------+-+-------------+---------->
+                                 ^         ^                             ^ processM1     process M2
+                                 |         |                             |
+                                 |         |                             |
+  painting   +----------------------------------+------------------------+-------------------------->
+                                 |         |    ^                       EndPending
+                                 |         |    |
+                                 |         |    |PostFlushDrawCommand
+                         SendFoo1| SendFoo2|    |
+                                 |         |    |
+  main       +--+----------+-----+---------+----+----+---------------------------------------------->
+                ^          ^                         ^
+                |          |                         |
+                |          |                         |
+                +          +                         +
+           BeginFrame     StartPending             EndFrame
+
+----
+
+### Discussion
+* The SourceSurface life-cycle from CreateWrappingDataSourceSurface()
+* APZ progressive update(repeated transaction)
