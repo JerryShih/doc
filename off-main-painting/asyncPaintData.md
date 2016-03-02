@@ -1,21 +1,22 @@
 ### AsyncPaintData and DrawTargetAsyncManager
-                                Register
-                         +---------------------+
-                         |                     |
-                         |                     |
-                         |                     |
-                         +                     |
-                   AsyncPaintData              |
-                         ^                     v
-                         |             DrawTargetAsyncManager
-               +---------+
-               |         |
-               |         +----------+
-               |                    |
-    DrawTargetAsyncPaintData        |
-               |                    |
-               |       TextureClientAsyncPaintData
-               |                    |
-          DrawTarget                |
-                                    |
-                               TextureClient
+
+                             Register
+                     +---------------------+
+                     |                     |
+                     |                     |
+                     |                     |
+                     +                     |                DrawTargetAsync
+               AsyncPaintData              |                       |
+                     ^                     v                       |
+                     |             DrawTargetAsyncManager          |
+           +---------+                                             |
+           |         |                                       AsyncPaintData
+           |         +----------+
+           |                    |
+DrawTargetAsyncPaintData        |
+           |                    |
+           |       TextureClientAsyncPaintData
+           |                    |
+      DrawTarget                |
+                                |
+                           TextureClient
