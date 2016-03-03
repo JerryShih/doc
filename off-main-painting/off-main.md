@@ -1,5 +1,5 @@
 ### Problem
-* [The profile of one frame](Profiler_DisplayList_DisplayItem_RenderLayer.png)
+* [The profile of one frame](https://github.com/JerryShih/doc/blob/master/off-main-painting/Profiler_DisplayList_DisplayItem_RenderLayer.png)
 * Try to reduce the RenderLayer() cost at main thread.
 
 ---
