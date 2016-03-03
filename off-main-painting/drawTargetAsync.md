@@ -1,8 +1,8 @@
 ### DrawTargetAsync
 
-    DrawTargetAsync
-           |
-           |
-           |
-           |
-     AsyncPaintData
+	    DrawTargetAsync
+	           |
+	           |
+	           |
+	           |
+	     AsyncPaintData
