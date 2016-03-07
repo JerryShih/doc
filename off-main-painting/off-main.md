@@ -23,7 +23,7 @@
       ClientLayerManager::EndTransaction()
         Root->RenderLayer()     // draw calls
         ClientLayerManager::ForwardTransaction()  // send layer data to parent side
-        FreeHoldedResource()
+        ... // clear some layers and TextureClient which are not used after transaction
         if (RepeatTransaction) {    // APZ repeated transaction
           ClientLayerManager::BeginTransaction()
           ClientLayerManager::EndTransaction()    // a recursive call here
@@ -31,17 +31,29 @@
 
 ----
 
+### Original Paint Flow in Gecko
+* [Repeated transaction](https://docs.google.com/presentation/d/1cq1WtypJ6Ff8m2fr3vwlLMkS8mZIq1WZlgIlClAI9-8/edit#slide=id.p)
+
+---
+
+### IPC deferring mode
+* Prevent the actor __delete__ call during off-main painting.
+* Make sure all messages are still in order during off-main painting(e.g. MakeSnapshot()).
+* [IPC deferring mode diagram](https://github.com/JerryShih/doc/blob/master/off-main-painting/ipc.md)
+
+---
+
 ### Proposed Off-main Painting Flow
     ClientLayerManager::EndTransaction()
-      if (!RepeatTransaction) {     // Only wait previous transactions
-        WaitAllOffMainTransaction() // for frame boundary
+      if (!RepeatTransaction) {     // Try to handle APZ repeated transaction.
+        WaitAllOffMainTransaction() // Only wait previous transactions for frame boundary
       }
       GetDrawTargetAsyncManager()->BeginTransaction() // Record all draw commands
       Root->RenderLayer()                             // during a off-main painting
       GetDrawTargetAsyncManager()->EndTransaction()   // transaction
       ClientLayerManager::ForwardTransaction()
         GetDrawTargetAsyncManager()->PostApplyLastTransaction() // post to thread
-      FreeHoldedResource()
+      ... // clear some layers and TextureClient which are not used after transaction
       if (RepeatTransaction) {
         ClientLayerManager::BeginTransaction()
         ClientLayerManager::EndTransaction()
@@ -53,12 +65,6 @@
     ApplyLastTransaction()
       ApplyPendingDrawCommand()
       SignalWaitableObject()
-
----
-
-### IPC deferring mode
-* Make sure all messages are still in order during off-main painting.
-* [IPC deferring mode diagram](https://github.com/JerryShih/doc/blob/master/off-main-painting/ipc.md)
 
 ---
 
@@ -75,4 +81,6 @@
 ---
 
 ### Discussion
-* The SourceSurface life-cycle from CreateWrappingDataSourceSurface()
+* The memcopy of WrappingDataSourceSurface during recording
+* There are some flush-draw-command calls at main thread
+  * Snapshot(), GetNativeSurface(), Borrow[Cairo|CG]ContextFromDrawTarget() and ReadbackSink in TextureClient
